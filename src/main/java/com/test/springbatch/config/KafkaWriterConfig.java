@@ -1,6 +1,8 @@
 package com.test.springbatch.config;
 
-import com.test.springbatch.dao.Hike;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.batch.item.kafka.KafkaItemWriter;
@@ -11,8 +13,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.core.ProducerFactory;
 import org.springframework.kafka.support.serializer.JsonSerializer;
 
-import java.util.HashMap;
-import java.util.Map;
+import com.test.springbatch.dao.Hike;
 
 @Configuration
 public class KafkaWriterConfig {
@@ -23,6 +24,11 @@ public class KafkaWriterConfig {
         KafkaItemWriter<String, Hike> writer = new KafkaItemWriter<>();
         writer.setKafkaTemplate(kafkaTemplate);
         writer.setItemKeyMapper(hike -> "hike-" + hike.getId()); // Optional: Customize the key
+
+        // Add headers to each message
+        // Headers can be added using interceptors or by customizing the KafkaTemplate if needed.
+        // Removed setHeaderMapper as it is not defined for KafkaItemWriter.
+
         return writer;
     }
 
