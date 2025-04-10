@@ -2,68 +2,45 @@ package com.test.springbatch.batch;
 
 import com.test.springbatch.dao.Hike;
 import org.springframework.batch.item.ItemReader;
-import org.springframework.batch.item.database.JdbcCursorItemReader;
-import org.springframework.batch.item.database.builder.JdbcCursorItemReaderBuilder;
+import org.springframework.batch.item.database.JdbcPagingItemReader;
+import org.springframework.batch.item.database.builder.JdbcPagingItemReaderBuilder;
+import org.springframework.batch.item.database.support.SqlPagingQueryProviderFactoryBean;
 import org.springframework.jdbc.core.BeanPropertyRowMapper;
 import org.springframework.stereotype.Component;
 
 import javax.sql.DataSource;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
 
 @Component
 public class ItemReaderAlex implements ItemReader<Hike> {
 
-    private final JdbcCursorItemReader<Hike> primaryReader;
-    private final JdbcCursorItemReader<Hike> secondaryReader;
-    private Iterator<Hike> combinedIterator;
+    private final JdbcPagingItemReader<Hike> primaryReader;
 
-    public ItemReaderAlex(DataSource primaryDataSource, DataSource secondaryDataSource) {
-        // Configure the primary reader
-        this.primaryReader = new JdbcCursorItemReaderBuilder<Hike>()
+    public ItemReaderAlex(DataSource primaryDataSource) throws Exception {
+        // Configure the primary reader with paging
+        this.primaryReader = new JdbcPagingItemReaderBuilder<Hike>()
                 .dataSource(primaryDataSource)
-                .sql("SELECT * FROM hikes") // Replace with your actual query
+                .name("primaryPagingReader")
+                .queryProvider(createQueryProvider(primaryDataSource).getObject())
+                .pageSize(1000) // Fetch 1000 records per page
                 .rowMapper(new BeanPropertyRowMapper<>(Hike.class))
-                .name("primaryReader")
                 .build();
 
-        // Configure the secondary reader
-        this.secondaryReader = new JdbcCursorItemReaderBuilder<Hike>()
-                .dataSource(secondaryDataSource)
-                .sql("SELECT * FROM hikes") // Replace with your actual query
-                .rowMapper(new BeanPropertyRowMapper<>(Hike.class))
-                .name("secondaryReader")
-                .build();
-
-        // Combine results from both readers
-        List<Hike> combinedResults = new ArrayList<>();
-        try {
-            primaryReader.open(null); // Open the primary reader
-            Hike hike;
-            while ((hike = primaryReader.read()) != null) {
-                combinedResults.add(hike);
-            }
-            primaryReader.close(); // Close the primary reader
-
-            secondaryReader.open(null); // Open the secondary reader
-            while ((hike = secondaryReader.read()) != null) {
-                combinedResults.add(hike);
-            }
-            secondaryReader.close(); // Close the secondary reader
-        } catch (Exception e) {
-            throw new RuntimeException("Error reading data from data sources", e);
-        }
-
-        this.combinedIterator = combinedResults.iterator();
+        // Open the reader (Spring Batch will manage the lifecycle in production)
+        this.primaryReader.open(null);
     }
 
     @Override
-    public Hike read() {
-        if (combinedIterator.hasNext()) {
-            return combinedIterator.next();
-        } else {
-            return null; // End of the combined list
-        }
+    public Hike read() throws Exception {
+        // Delegate reading to the primary reader
+        return primaryReader.read();
+    }
+
+    private SqlPagingQueryProviderFactoryBean createQueryProvider(DataSource dataSource) {
+        SqlPagingQueryProviderFactoryBean queryProvider = new SqlPagingQueryProviderFactoryBean();
+        queryProvider.setDataSource(dataSource);
+        queryProvider.setSelectClause("SELECT *");
+        queryProvider.setFromClause("FROM hikes");
+        queryProvider.setSortKey("id"); // Sort by the primary key or another indexed column
+        return queryProvider;
     }
 }
